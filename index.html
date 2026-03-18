@@ -2,34 +2,183 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>自己紹介</title>
+    <title>Simple JS Platformer</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #333;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
         }
-        .container {
-            width: 400px;
-            margin: 50px auto;
-            background-color: #ffffff;
-            padding: 20px;
-            border-radius: 10px;
+        canvas {
+            background-color: #5C94FC; /* マリオ風の空の色 */
+            border: 4px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
-        h1 {
-            text-align: center;
-        }
-        p {
-            font-size: 16px;
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            font-size: 20px;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>自己紹介</h1>
-        <p><strong>名前：</strong>澤井</p>
-        <p><strong>出身：</strong>日本</p>
-        <p><strong>趣味：</strong>読書、音楽、スポーツ</p>
-        <p><strong>ひとこと：</strong>よろしくお願いします！</p>
-    </div>
+
+    <div id="ui">Score: <span id="score">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+
+    // ゲーム設定
+    canvas.width = 800;
+    canvas.height = 400;
+
+    const gravity = 0.8;
+    const friction = 0.8;
+    let score = 0;
+
+    // プレイヤーオブジェクト
+    const player = {
+        x: 50,
+        y: 200,
+        width: 30,
+        height: 30,
+        speed: 5,
+        velX: 0,
+        velY: 0,
+        jumping: false,
+        color: "#E74C3C" // 赤色
+    };
+
+    // 足場（プラットフォーム）
+    const platforms = [
+        { x: 0, y: 350, width: 1000, height: 50 }, // 地面
+        { x: 200, y: 250, width: 100, height: 20 },
+        { x: 400, y: 180, width: 100, height: 20 },
+        { x: 600, y: 250, width: 100, height: 20 },
+        { x: 850, y: 200, width: 150, height: 20 },
+        { x: 1100, y: 150, width: 100, height: 20 }
+    ];
+
+    // コイン
+    let coins = [
+        { x: 230, y: 210, width: 15, height: 15, collected: false },
+        { x: 430, y: 140, width: 15, height: 15, collected: false },
+        { x: 630, y: 210, width: 15, height: 15, collected: false }
+    ];
+
+    const keys = {};
+
+    // 入力検知
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function update() {
+        // ジャンプ
+        if ((keys['ArrowUp'] || keys['Space']) && !player.jumping) {
+            player.velY = -15;
+            player.jumping = true;
+        }
+        // 左右移動
+        if (keys['ArrowRight']) {
+            if (player.velX < player.speed) player.velX++;
+        }
+        if (keys['ArrowLeft']) {
+            if (player.velX > -player.speed) player.velX--;
+        }
+
+        // 物理演算
+        player.velX *= friction;
+        player.velY += gravity;
+        player.x += player.velX;
+        player.y += player.velY;
+
+        // 地面・足場との衝突判定
+        player.jumping = true;
+        for (let plat of platforms) {
+            if (player.x < plat.x + plat.width &&
+                player.x + player.width > plat.x &&
+                player.y < plat.y + plat.height &&
+                player.y + player.height > plat.y) {
+                
+                // 上から乗った場合
+                if (player.velY > 0 && player.y + player.height - player.velY <= plat.y) {
+                    player.jumping = false;
+                    player.velY = 0;
+                    player.y = plat.y - player.height;
+                }
+            }
+        }
+
+        // コイン取得判定
+        coins.forEach(coin => {
+            if (!coin.collected &&
+                player.x < coin.x + coin.width &&
+                player.x + player.width > coin.x &&
+                player.y < coin.y + coin.height &&
+                player.y + player.height > coin.y) {
+                coin.collected = true;
+                score += 10;
+                scoreElement.innerText = score;
+            }
+        });
+
+        // 画面外（落下）チェック
+        if (player.y > canvas.height) {
+            player.x = 50;
+            player.y = 200;
+            player.velX = 0;
+            player.velY = 0;
+        }
+
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 背景カメラの移動（簡易的なスクロール）
+        ctx.save();
+        let scrollX = -player.x + 100;
+        if (scrollX > 0) scrollX = 0;
+        ctx.translate(scrollX, 0);
+
+        // プラットフォームの描画
+        ctx.fillStyle = "#8B4513"; // 茶色
+        platforms.forEach(plat => {
+            ctx.fillRect(plat.x, plat.y, plat.width, plat.height);
+        });
+
+        // コインの描画
+        ctx.fillStyle = "#FFD700"; // 金色
+        coins.forEach(coin => {
+            if (!coin.collected) {
+                ctx.beginPath();
+                ctx.arc(coin.x + 7, coin.y + 7, 7, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+
+        // プレイヤーの描画
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+
+        ctx.restore();
+    }
+
+    update();
+</script>
 </body>
 </html>
